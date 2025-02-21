@@ -1,28 +1,39 @@
 package main
 
 import (
-	"log"
+	"flag"
+	"log/slog"
 	"net/http"
+	"os"
 )
 
 
-func main() {
-	// Create a http server which serves files from ui/static.
-	fileServer := http.FileServer(http.Dir("./ui/static/"))
+type application struct {
+	logger *slog.Logger
+}
 
-	// Create a router for the application (usually there is only one)
-	// which is responsible for dispatch the requests.
-	// Method based routing allows to specify the type of http request to 
-	// handle.
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", home)
-	mux.HandleFunc("GET /snippet/view/{id}", snippetView)
-	mux.HandleFunc("GET /snippet/create", snippetCreate)
-	mux.HandleFunc("POST /snippet/create", snippetCreatePost)
-	mux.Handle("GET /static/", http.StripPrefix("/static", fileServer))
-	log.Print("Starting server on :4000")
+
+func main() {
+	addr := flag.String("addr", ":4000", "HTTP network address")
+
+	flag.Parse()
+
+	// loggerHandler := slog.NewTextHandler(os.Stdout, nil)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+		AddSource: true,
+	}))
+
+	app := application{
+		logger: logger,
+	}
+
+	mux := app.routes()
+
+	logger.Info("starting server", "addr", *addr)
 
 	// Use the default http server for this basic example.
-	err := http.ListenAndServe(":4000", mux)
-	log.Fatal(err)
+	err := http.ListenAndServe(*addr, mux)
+	logger.Error(err.Error())
+	os.Exit(1)
 }

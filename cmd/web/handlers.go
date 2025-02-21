@@ -3,12 +3,11 @@ package main
 import (
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 	"strconv"
 )
 
-func home(w http.ResponseWriter, r *http.Request) {
+func (app *application) home(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Server", "Go")
 
 	files := []string{
@@ -22,20 +21,18 @@ func home(w http.ResponseWriter, r *http.Request) {
 	// Log errors and create an error response in case of any error.
 	ts, err := template.ParseFiles(files...)
 	if err != nil {
-		log.Print(err.Error())
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		app.serverError(w, r, err)
 		return
 	}
 
 	// If no errors, we can write to the template the response body.
 	err = ts.ExecuteTemplate(w, "base", nil)
 	if err != nil {
-		log.Print(err.Error())
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		app.serverError(w, r, err)
 	}
 }
 
-func snippetView(w http.ResponseWriter, r *http.Request) {
+func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil || id < 1 {
 		http.NotFound(w, r)
@@ -47,11 +44,11 @@ func snippetView(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `{"id": "%d"}`, id)
 }
 
-func snippetCreate(w http.ResponseWriter, r *http.Request) {
+func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Display a form for creating a custom snippet."))
 }
 
-func snippetCreatePost(w http.ResponseWriter, r *http.Request) {
+func (app *application) snippetCreatePost(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 
 	w.Write([]byte("Save a new snippet."))
