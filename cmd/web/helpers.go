@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"time"
 )
 
 // Internal server error
@@ -52,5 +53,12 @@ func (app *application) render(w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		app.serverError(w, r, err)
 		return
+	}
+}
+
+
+func (app *application) newTemplateData(r *http.Request) templateData {
+	return templateData{
+		CurrentYear: time.Now().Year(),
 	}
 }
