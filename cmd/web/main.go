@@ -1,29 +1,37 @@
 package main
 
 import (
+	"crypto/tls"
 	"database/sql"
 	"flag"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/Giully314/snippetbox/internal/models"
+	"github.com/alexedwards/scs/mysqlstore"
+	"github.com/alexedwards/scs/v2"
+	"github.com/go-playground/form/v4"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
+// TODO: use the form deco
 type application struct {
 	logger        *slog.Logger
 	snippets      *models.SnippetModel
 	templateCache map[string]*template.Template
+	formDecoder *form.Decoder
+	sessionManager *scs.SessionManager
 }
 
 func main() {
 	addr := flag.String("addr", ":4000", "HTTP network address")
 
 	// Mysql DSN (data source name or connection string).
-	dsn := flag.String("dsn", "web:password@/snippetbox?parseTime=True", "MySQL data source name")
+	dsn := flag.String("dsn", "web:pass@/snippetbox?parseTime=True", "MySQL data source name")
 
 	flag.Parse()
 
@@ -47,18 +55,43 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Decoder 
+	formDecoder := form.NewDecoder()
+
+	// Setup session manager
+	sessionManager := scs.New()
+	sessionManager.Store = mysqlstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+
+
 	app := application{
 		logger:        logger,
 		snippets:      &models.SnippetModel{DB: db},
 		templateCache: templateCache,
+		formDecoder: formDecoder,
+		sessionManager: sessionManager,
+	}	
+
+	// Here we can also setup min and max version of TLS.
+	// Also the cipher can be configured.
+	tlsConfig := &tls.Config{
+		CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
 	}
 
-	mux := app.routes()
 
 	logger.Info("starting server", "addr", *addr)
 
-	// Use the default http server for this basic example.
-	err = http.ListenAndServe(*addr, mux)
+	// Another good setting is the MaxHeaderBytes.
+	srv := &http.Server {
+		Addr: *addr,
+		Handler: app.routes(),
+		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
+		TLSConfig: tlsConfig,
+		IdleTimeout: time.Minute,
+		ReadTimeout: 5 * time.Second, // Slowloris attack 
+		WriteTimeout: 10 * time.Second,
+	}
+	err = srv.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
 	logger.Error(err.Error())
 	os.Exit(1)
 }

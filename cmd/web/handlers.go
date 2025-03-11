@@ -12,10 +12,10 @@ import (
 
 // Define a struct to represent the form data and validation errors.
 type snippetCreateForm struct {
-	Title string
-	Content string
-	Expires int
-	validator.Validator
+	Title string 		`form:"title"`
+	Content string		`form:"content"`
+	Expires int			`form:"expires"`
+	validator.Validator `form:"-"`
 }
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
@@ -63,21 +63,11 @@ func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) snippetCreatePost(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseForm()
+	var form snippetCreateForm
+	err := app.decodePostForm(r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
-	}
-
-	expires, err := strconv.Atoi(r.PostForm.Get("expires"))
-	if err != nil {
-		app.clientError(w, http.StatusBadRequest)
-	}
-
-	form := snippetCreateForm{
-		Title: r.PostForm.Get("title"),
-		Content: r.PostForm.Get("content"),
-		Expires: expires,
 	}
 
 	// Validation for the title.
@@ -95,7 +85,7 @@ func (app *application) snippetCreatePost(w http.ResponseWriter, r *http.Request
 		"This field must be equal to 1, 7 or 365")
 	
 
-	if !form.Valid() {
+	if !form.Valid() { 
 		data := app.newTemplateData(r)
 		data.Form = form
 		app.render(w, r, http.StatusUnprocessableEntity, "create.tmpl", data)
@@ -107,6 +97,9 @@ func (app *application) snippetCreatePost(w http.ResponseWriter, r *http.Request
 		app.serverError(w, r, err)
 		return
 	}
+
+	// Add a flash message in case of success of post creation.
+	app.sessionManager.Put(r.Context(), "flash", "Snippet successfully created!")
 
 	http.Redirect(w, r, fmt.Sprintf("/snippet/view/%d", id), http.StatusSeeOther)
 }
