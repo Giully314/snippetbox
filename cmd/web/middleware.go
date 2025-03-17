@@ -3,15 +3,16 @@ package main
 import (
 	"fmt"
 	"net/http"
-)
 
+	"github.com/justinas/nosurf"
+)
 
 func commonHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Security-Policy", 
+			w.Header().Set("Content-Security-Policy",
 				"default-src 'self'; style-src 'self' fonts.googleapis.com; font-src fonts.gstatic.com")
-			
+
 			w.Header().Set("Referrer-Policy", "origin-when-cross-origin")
 			w.Header().Set("X-Frame-Options", "deny")
 			w.Header().Set("X-XSS-Protection", "0")
@@ -22,15 +23,14 @@ func commonHeaders(next http.Handler) http.Handler {
 		})
 }
 
-
 func (app *application) logRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var (
-			ip = r.RemoteAddr
-			proto = r.Proto
+			ip     = r.RemoteAddr
+			proto  = r.Proto
 			method = r.Method
-			uri = r.URL.RequestURI()
-		)	
+			uri    = r.URL.RequestURI()
+		)
 
 		app.logger.Info("received request", "ip", ip, "proto", proto, "method", method,
 			"uri", uri)
@@ -50,4 +50,28 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (app *application) requiredAuthentication(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !app.isAuthenticated(r) {
+			http.Redirect(w, r, "/user/login", http.StatusSeeOther)
+			return
+		}
+
+		// Require authentication info to not be stored in the user web cache.
+		w.Header().Add("Cache-Control", "no-store")
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func noSurf(next http.Handler) http.Handler {
+	csrfHandler := nosurf.New(next)
+	csrfHandler.SetBaseCookie(http.Cookie{
+		HttpOnly: true,
+		Path:     "/",
+		Secure:   true,
+	})
+	return csrfHandler
 }

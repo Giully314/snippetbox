@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"runtime/debug"
 	"time"
 
 	"github.com/go-playground/form/v4"
+	"github.com/justinas/nosurf"
 )
 
 // Internal server error
@@ -19,10 +19,10 @@ func (app *application) serverError(w http.ResponseWriter, r *http.Request, err 
 		method = r.Method
 		uri    = r.URL.RequestURI()
 		// Stack trace of the current go-routine
-		trace = string(debug.Stack())
+		// trace = string(debug.Stack())
 	)
-	app.logger.Error(err.Error(), slog.String("method", method), slog.String("uri", uri),
-		slog.String("trace", trace))
+	// slog.String("trace", trace)
+	app.logger.Error(err.Error(), slog.String("method", method), slog.String("uri", uri))
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
 
@@ -59,11 +59,12 @@ func (app *application) render(w http.ResponseWriter, r *http.Request,
 	}
 }
 
-
 func (app *application) newTemplateData(r *http.Request) templateData {
 	return templateData{
-		CurrentYear: time.Now().Year(),
-		Flash: app.sessionManager.PopString(r.Context(), "flash"),
+		CurrentYear:     time.Now().Year(),
+		Flash:           app.sessionManager.PopString(r.Context(), "flash"),
+		IsAuthenticated: app.isAuthenticated(r),
+		CSRFToken:       nosurf.Token(r),
 	}
 }
 
@@ -84,4 +85,8 @@ func (app *application) decodePostForm(r *http.Request, dst any) error {
 	}
 
 	return nil
+}
+
+func (app *application) isAuthenticated(r *http.Request) bool {
+	return app.sessionManager.Exists(r.Context(), "authenticatedUserID")
 }

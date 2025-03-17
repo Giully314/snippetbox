@@ -20,11 +20,12 @@ import (
 
 // TODO: use the form deco
 type application struct {
-	logger        *slog.Logger
-	snippets      *models.SnippetModel
-	templateCache map[string]*template.Template
-	formDecoder *form.Decoder
+	logger         *slog.Logger
+	snippets       *models.SnippetModel
+	templateCache  map[string]*template.Template
+	formDecoder    *form.Decoder
 	sessionManager *scs.SessionManager
+	users          *models.UserModel
 }
 
 func main() {
@@ -55,7 +56,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Decoder 
+	// Decoder
 	formDecoder := form.NewDecoder()
 
 	// Setup session manager
@@ -63,32 +64,33 @@ func main() {
 	sessionManager.Store = mysqlstore.New(db)
 	sessionManager.Lifetime = 12 * time.Hour
 
-
 	app := application{
-		logger:        logger,
-		snippets:      &models.SnippetModel{DB: db},
-		templateCache: templateCache,
-		formDecoder: formDecoder,
+		logger:         logger,
+		snippets:       &models.SnippetModel{DB: db},
+		templateCache:  templateCache,
+		formDecoder:    formDecoder,
 		sessionManager: sessionManager,
-	}	
+		users:          &models.UserModel{DB: db},
+	}
 
 	// Here we can also setup min and max version of TLS.
 	// Also the cipher can be configured.
 	tlsConfig := &tls.Config{
+		// This is the min version which supports SameSite=Lax
+		MinVersion:       tls.VersionTLS13,
 		CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
 	}
-
 
 	logger.Info("starting server", "addr", *addr)
 
 	// Another good setting is the MaxHeaderBytes.
-	srv := &http.Server {
-		Addr: *addr,
-		Handler: app.routes(),
-		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
-		TLSConfig: tlsConfig,
-		IdleTimeout: time.Minute,
-		ReadTimeout: 5 * time.Second, // Slowloris attack 
+	srv := &http.Server{
+		Addr:         *addr,
+		Handler:      app.routes(),
+		ErrorLog:     slog.NewLogLogger(logger.Handler(), slog.LevelError),
+		TLSConfig:    tlsConfig,
+		IdleTimeout:  time.Minute,
+		ReadTimeout:  5 * time.Second, // Slowloris attack
 		WriteTimeout: 10 * time.Second,
 	}
 	err = srv.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
