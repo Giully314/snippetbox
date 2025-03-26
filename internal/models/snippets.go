@@ -6,10 +6,16 @@ import (
 	"time"
 )
 
+type SnippetModelInterface interface {
+	Insert(title string, content string, expires int) (int, error)
+	Get(id int) (Snippet, error)
+	Latest() ([]Snippet, error)
+}
+
 // Struct for holding data for a single row in the db
 type Snippet struct {
-	ID int
-	Title string
+	ID      int
+	Title   string
 	Content string
 	Created time.Time
 	Expires time.Time
@@ -59,13 +65,13 @@ func (m *SnippetModel) Get(id int) (Snippet, error) {
 func (m *SnippetModel) Latest() ([]Snippet, error) {
 	stmt := `SELECT id, title, content, created, expires FROM snippets 
 		WHERE expires > UTC_TIMESTAMP() ORDER BY id DESC LIMIT 10`
-	
+
 	rows, err := m.DB.Query(stmt)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-		
+
 	snippets := make([]Snippet, 0, 10)
 	for rows.Next() {
 		var s Snippet
@@ -77,7 +83,7 @@ func (m *SnippetModel) Latest() ([]Snippet, error) {
 		snippets = append(snippets, s)
 	}
 
-	// Check if rows.Err() is set, it means that the previous cycle 
+	// Check if rows.Err() is set, it means that the previous cycle
 	// was terminated for sql errors.
 	if err = rows.Err(); err != nil {
 		return nil, err
